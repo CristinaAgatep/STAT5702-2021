@@ -53,6 +53,7 @@ library(tidyverse)
 library(lubridate)
 library(ggpubr)
 
+# Reading in CSV file. Mutate creates new column (overwrites previous column date into a new date format)
 Canadian.data <- read_csv("https://health-infobase.canada.ca/src/data/covidLive/covid19.csv") %>% 
                  mutate(date = as_date(date, format = "%d-%m-%y"))
 ```
@@ -69,7 +70,17 @@ Canadian.data <- read_csv("https://health-infobase.canada.ca/src/data/covidLive/
 Consider the number of case types in a province over the past few months
 
 ```{r stacked barplot, cache = TRUE, warning = FALSE}
+
+# Used to subset for province
 location ="Ontario"
+
+# Creates a plot for daily cases in Ontario
+
+# 1. Subset by location
+# 2. Select only specific columns
+# 3. Renamed some columns
+# 4. Gather: we want to reshape the dataframe so recovered, deaths, and active are all treated as Y-variable to date as X-variable. Stacks dataset so it's tall (recovered, deaths, and active are in a single column). CASETYPE: key that tells you if it's recovered, deaths, active. CASES: values. EXLUDED COLUMNS: date is not included in the 
+# 5. ggplot is created
 Canadian.data %>% subset(prname == location) %>%
   select(date,numrecoveredtoday,numdeathstoday,numactive)%>%
   rename(recovered.today=numrecoveredtoday,deaths.today=numdeathstoday,active=numactive)%>%
@@ -78,7 +89,40 @@ ggplot( ) +
   geom_line(aes(x = date, y=cases,colour=casetype)) +
   scale_x_date(date_labels = "%d/%m", date_breaks = "2 weeks") +
   ggtitle(paste0("Daily Cases in ",location))
-  
+# Question: why is the graph broken? It keeps going up and down
+# ?gather: It is superseded and will stop working. There is a better function out there. We're going to try pivot_longer.
+
+Canadian.data %>% subset(prname == location) %>%
+  select(date,numrecoveredtoday,numdeathstoday,numactive)%>%
+  rename(recovered.today=numrecoveredtoday,deaths.today=numdeathstoday,active=numactive)%>%
+  pivot_longer(names_to="casetype", values_to="cases", cols=-date) |>
+  ggplot( ) +
+  geom_line(aes(x = date, y=cases,colour=casetype)) +
+  scale_x_date(date_labels = "%d/%m", date_breaks = "2 weeks") +
+  ggtitle(paste0("Daily Cases in ",location))
+# Problems: 
+  # It's still going up and down
+  # It's looking only at one year when the data includes more than one year. Exploring the data further.
+
+Canadian.data %>% view()
+read_csv("https://health-infobase.canada.ca/src/data/covidLive/covid19.csv") %>% view()
+
+Canadian.data %>% select(date) %>% summary()
+
+# It seems that when it is converted to date, it breaks it so that the year 2021 does not appear, Looking more closely at format(%d-%m-%y), the lowercase y only uses the (first?last?) two digits of year. Use capital letter Y instead.
+
+Canadian.data <- read_csv("https://health-infobase.canada.ca/src/data/covidLive/covid19.csv") %>% 
+                 mutate(date = as_date(date, format = "%d-%m-%Y"))
+
+Canadian.data %>% subset(prname == location) %>%
+  select(date,numrecoveredtoday,numdeathstoday,numactive)%>%
+  rename(recovered.today=numrecoveredtoday,deaths.today=numdeathstoday,active=numactive)%>%
+  pivot_longer(names_to="casetype", values_to="cases", cols=-date) |>
+  ggplot( ) +
+  geom_line(aes(x = date, y=cases,colour=casetype)) +
+  scale_x_date(date_labels = "%d/%m", date_breaks = "2 weeks") +
+  ggtitle(paste0("Daily Cases in ",location))
+
 
 
 Canadian.data %>% subset(prname == location) %>%
@@ -90,7 +134,6 @@ ggplot( ) +
   scale_x_date(date_labels = "%d/%m", date_breaks = "2 weeks") +
   ggtitle(paste0("Daily Cases in ",location, " 14 day totals"))
  
-
 
 
 Canadian.data %>% subset(prname == location) %>%
